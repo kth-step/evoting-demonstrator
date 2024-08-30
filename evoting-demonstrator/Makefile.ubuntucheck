@@ -1,0 +1,6 @@
+# set variable for compilation on ubuntu
+ifeq ($(shell cat /etc/lsb-release 2> /dev/null \
+  | grep '^DISTRIB_ID=' | cut -f2 -d=),Ubuntu)
+	UBUNTU=1
+endif
+

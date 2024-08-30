@@ -1,0 +1,12 @@
+# mainly downloaded or generated
+*.S
+*.bin
+*.tar.gz
+*.tar.xz
+buildroot-2021.02.8
+lib/basis_ffi.c
+lib/cake32
+lib/cake32.S
+lib/cake64
+lib/cake64.S
+rootfs

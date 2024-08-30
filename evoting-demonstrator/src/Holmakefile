@@ -1,0 +1,10 @@
+INCLUDES = $(CAKEMLDIR)/developers $(CAKEMLDIR)/misc\
+					 $(CAKEMLDIR)/semantics $(CAKEMLDIR)/characteristic\
+					 $(CAKEMLDIR)/translator $(CAKEMLDIR)/translator/monadic\
+					 $(CAKEMLDIR)/basis $(CAKEMLDIR)/basis/pure\
+					 $(CAKEMLDIR)/unverified/sexpr-bootstrap\
+					 $(VCSDIR)/json\
+					 $(VCSDIR)/base64\
+					 $(VCSDIR)/deser\
+
+

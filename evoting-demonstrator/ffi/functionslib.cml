@@ -1,0 +1,142 @@
+
+fun error str = TextIO.output TextIO.stdErr str;
+fun die str = (error str; Runtime.exit 1);
+
+fun print str =
+let
+  val data_output = List.map (Word8.fromInt o Char.ord) (String.explode str);
+  val len = List.length data_output;
+  val buf = Word8Array.array len (Word8.fromInt 0)
+  val _ = List.mapi (fn i => fn e => Word8Array.update buf i e) data_output
+  val _ = #(printf) "" buf
+in () end;
+
+fun log level_current tag level str =
+  if level_current < level then () else
+    (* TextIO.print_err *)
+    print ("[" ^ tag ^ "] " ^ str ^ "\n");
+fun logid level_current id tag level str =
+  log level_current (id ^ " " ^ tag) level str
+
+(* print a line *)
+fun println str = print (str ^ "\n");
+
+(* reads a file *)
+fun readfile file =
+let
+  val fh = TextIO.openIn file;
+  val text = TextIO.inputAll fh;
+  val _ = TextIO.closeIn fh;
+in
+  text
+end;
+
+(* converts integer to hex *)
+fun int_to_hex i =
+  if i < 10
+  then Char.chr (i + Char.ord #"0")
+  else Char.chr (i + (Char.ord #"a") - 10);
+
+(* converts an integer list to hex string *)
+fun to_hex (byte_list : int list) =
+  String.implode (List.map (fn x => int_to_hex (Word8.toInt x))
+      (List.concat
+        (List.map
+          (fn x => [Word8.>> x 4, Word8.andb (Word8.fromInt 15) x])
+          (List.map Word8.fromInt byte_list))));
+
+(*
+  reads ((length - offset) / 2) many w2 pairs (ww) into a list of integers,
+  skipping the first offset-many bytes.
+  assumes len <= Word8Array.length byte_array
+*)
+fun w2_array_to_int_list byte_array offset len =
+let
+  val half_len = Int.div (Int.- len offset) 2;
+  val _ = println ("w2_array_to_int_list: half_len " ^ Int.toString half_len);
+  val _ = println ("w2_array_to_int_list: len " ^ Int.toString len);
+in
+  List.genlist
+    (fn i => Marshalling.w22n byte_array (Int.+ offset (Int.* 2 i)))
+    half_len
+end;
+
+(* Transforms byte_array -> Word8.word list  *)
+fun byte_array_to_byte_list byte_array offset =
+  List.drop
+    (List.genlist
+      (fn i => Word8Array.sub byte_array i)
+      (Word8Array.length byte_array))
+    offset;
+
+(* transforms a list to byte_array, with initial 0 offset *)
+fun int_list_to_w2_array ls offset =
+  let
+    val half_len = List.length ls;
+    val len = Int.* 2 half_len;
+    val buf = Word8Array.array (offset + len) (Word8.fromInt 0);
+    val c =
+      List.mapi
+      (fn i => fn x => Marshalling.n2w2 x buf (Int.+ offset (Int.* 2 i)))
+      ls
+  in
+    buf
+  end;
+
+(* adds a list of bytes to a byte_array *)
+(* assumes:  offset + List.length ls <= Word8Array.length buf *)
+fun byte_list_to_byte_array buf ls offset =
+  let
+    val len_ls = List.length ls;
+    val len_buf = Word8Array.length buf;
+    val c =
+      List.mapi
+      (fn i => fn x => Word8Array.update buf (Int.+ offset i) x)
+      ls
+  in
+    ()
+  end;
+
+(* transforms a string to a Word8 list *)
+fun string_to_byte_list str =
+  List.map (fn x => Word8.fromInt (Char.ord x)) (String.explode str);
+
+(* transforms a Word8 list to string *)
+fun byte_list_to_string ls len =
+  String.implode
+    (List.map (fn x => Char.chr (Word8.toInt x))
+      (if len > 0 then List.take ls len else ls));
+
+(* transforms little-endian int list into a number,
+  int_of_bytes [0,1,0,0] = 256, int_of_bytes [0,0,1,0] = 65536 *)
+fun int_of_bytes nums =
+let
+  val nums = List.map Word64.fromInt nums;
+  val len = List.length nums;
+  val offsets = List.genlist (fn x => Int.* x 8) len;
+  val shifted = List.map (fn (num,pos) => Word64.<< num pos) (List.zip (nums,offsets))
+in
+  Word64.toInt (List.foldl (Word64.orb) (Word64.fromInt 0) shifted)
+end;
+
+fun int_to_bytes_acc n acc =
+let
+  val ff = Word64.fromInt 255;
+  val nn = Word64.toInt n;
+in
+  if nn <= 255 then (List.snoc nn acc)
+  else
+    int_to_bytes_acc (Word64.>> n 8)
+      (List.snoc (Word64.toInt (Word64.andb n ff)) acc)
+end;
+
+(*
+Inverse of int_of_bytes
+int_to_bytes 256 = [0,1]
+int_to_bytes 65536 = [0,0,1]
+*)
+fun int_to_bytes n = int_to_bytes_acc (Word64.fromInt n) [];
+
+(*
+vim: ft=sml
+*)

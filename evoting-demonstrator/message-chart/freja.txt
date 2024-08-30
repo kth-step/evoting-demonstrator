@@ -1,0 +1,45 @@
+@startuml
+' Model of the Freja eID Authentication Service
+' for a successful authentication
+' https://frejaeid.com/rest-api/Authentication%20Service.html
+' https://plantuml.com/sequence-diagram
+
+skinparam sequence {
+ArrowColor DeepSkyBlue
+ActorBorderColor DeepSkyBlue
+LifeLineBorderColor blue
+LifeLineBackgroundColor #A9DCDF
+
+ParticipantBorderColor Black
+ParticipantBackgroundColor LightGray
+ParticipantFontSize 17
+ParticipantFontColor Black
+}
+
+participant "Voter" as client
+participant "Freja eID" as freja
+participant "Vote Collection Server (VCS; RP)" as vcs
+
+autonumber
+
+group ``authentication protocol with Freja"
+  client -> vcs: submit vote (or first request to VCS)
+  vcs -> freja: initAuthentication (userInfoType, attributesToReturn, ...)
+  vcs <- freja: authRef
+  vcs -> client: send authRef (e.g. QR code)
+  group ``approximate authentication (with authRef)"
+    client -> freja: authenticate with authRef
+    client <- freja: challenge
+    client -> freja: response
+    client <- freja: ok
+  end
+  alt#LightGray ``confirm single auth request"
+    vcs -> freja: getOneResult(authRef)
+    vcs <- freja: attributesToReturn, for authRef
+  else ``confirm multiple auth requests"
+    vcs -> freja: getAuthResultsRequest (for this RP)
+    vcs <- freja: array of attributesToReturn per authRef
+  end
+end
+
+@enduml

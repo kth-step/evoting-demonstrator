@@ -1,0 +1,13 @@
+INCLUDES = $(VCSDIR)/src\
+           $(VCSDIR)/deser\
+           $(CAKEMLDIR)/basis/pure\
+
+all: $(DEFAULT_TARGETS) selftest.log
+.PHONY: all
+
+selftest.exe: selftest.uo TevDNetworkedSystemTheory.uo
+	$(HOLMOSMLC) -o $@ $<
+
+selftest.log: selftest.exe
+	$(tee ./$<, $@)
+

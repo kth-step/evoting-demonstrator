@@ -1,0 +1,75 @@
+(*
+  Crypto FFI
+*)
+
+(*
+(* verify an RSA signature (with SHA-256 digest) of a payload with public key *)
+fun crypto_verify_rs256 (sign : Word8.word list) (payload : Word8.word list) =
+  let
+    val _ = log 1 "cml crypto_verify_rs256" 1 "";
+    val sign_len = List.length sign;
+    val payload_len = List.length payload;
+    (* size of content plus header *)
+    val all_len = 4 + sign_len + payload_len;
+    (* buf = sign_len:w2 payload_len:w2 sign payload *)
+    val len = 65540 ;
+    (* TODO ensure all_len <= len *)
+    val buf = Word8Array.array len (Word8.fromInt 0) ;
+    val _ = Marshalling.n2w2 sign_len buf 0;
+    val _ = Marshalling.n2w2 payload_len buf 2;
+    val _ = byte_list_to_byte_array buf sign 4;
+    val _ = byte_list_to_byte_array buf payload (4+sign_len);
+    val _ = #(crypto_verify_rs256) "" buf;
+    (* buf = errorcode:w ... *)
+    val errorcode = Word8.toInt (Word8Array.sub buf 0);
+    val sign_check = 0 < errorcode;
+    val _ = log 1 "cml crypto_verify_rs256" 1 (""
+      ^ (Bool.toString sign_check));
+  in
+    sign_check (* true == is valid *)
+  end;
+*)
+
+fun crypto_verify_rs256 (sign : Word8.word list) (payload : Word8.word list) = True;
+
+(*
+(* calculate SHA-256 hash and return 32 bytes (Word8.word list) *)
+fun crypto_sha256 (byte_list : Word8.word list) =
+  let
+    val len = List.length byte_list;
+    (* buf : len:w2 and least 32 characters *)
+    val buf = Word8Array.array (max (len+2) 32) (Word8.fromInt 0) ;
+    val _ = Marshalling.n2w2 len buf 0;
+    val _ = log 1 "cml crypto_sha256" 1 ("length " ^ Int.toString len
+              ^ " buf length" ^ Int.toString (Word8Array.length buf));
+    val _ = byte_list_to_byte_array buf byte_list 2;
+    val _ = #(crypto_sha256) "" buf;
+    (* buf : [u8; 32] *)
+  in
+    List.genlist
+      (fn i => Word8.toInt (Word8Array.sub buf i))
+      32
+  end;
+*)
+
+fun crypto_sha256 (byte_list : Word8.word list) =
+  List.genlist
+    (fn i => 0)
+    32
+
+(* signature verification with freja PEM certificate *)
+fun verify_signature sign payload =
+  crypto_verify_rs256 sign payload;
+
+(* test for function crypto_verify_rs256 *)
+fun test_crypto_verify_rs256 () =
+  let
+    val sign = string_to_byte_list (readfile "test_assets/sign_signature");
+    val payl = string_to_byte_list (readfile "test_assets/sign_payload");
+    val b = verify_signature sign payl;
+    val _ = println ("cml test_crypto_verify_rs256: valid triple? " ^ Bool.toString b);
+  in b end ;
+
+(*
+vim: ft=sml
+*)

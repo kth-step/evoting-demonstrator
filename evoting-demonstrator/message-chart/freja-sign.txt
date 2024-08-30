@@ -1,0 +1,45 @@
+@startuml
+' Model of the Freja eID Signature Service
+' for a successful signing
+' https://frejaeid.com/rest-api/Signature%20Service.html
+' https://plantuml.com/sequence-diagram
+
+skinparam sequence {
+ArrowColor DeepSkyBlue
+ActorBorderColor DeepSkyBlue
+LifeLineBorderColor blue
+LifeLineBackgroundColor #A9DCDF
+
+ParticipantBorderColor Black
+ParticipantBackgroundColor LightGray
+ParticipantFontSize 17
+ParticipantFontColor Black
+}
+
+participant "Voter" as client
+participant "Freja eID" as freja
+participant "Webserver (RP)" as rp
+
+autonumber
+
+group ``signing protocol with Freja"
+  client -> rp: request vote signing
+  rp -> freja: initSignRequest (userInfoType, userInfo, data, ...)
+  rp <- freja: return signRef
+  rp -> client: ready for signing
+  group ``approximate signing (with signRef)"
+    client -> freja: anything to sign?
+    client <- freja: challenge
+    client -> freja: response
+    client <- freja: ok
+  end
+  alt#LightGray ``confirm single sign request"
+    rp -> freja: getOneSignResultRequest(signRef)
+    rp <- freja: details and proof for signRef
+  else ``confirm multiple sign requests"
+    rp -> freja: getAuthResultsRequest (for this RP)
+    rp <- freja: array of details and proof per signRef
+  end
+end
+
+@enduml

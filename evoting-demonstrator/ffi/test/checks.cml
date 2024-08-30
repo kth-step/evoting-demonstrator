@@ -1,0 +1,60 @@
+(*
+cakerepl
+val path = ".../ffi/test";
+CakeML.loadPath := [path] @ (!CakeML.loadPath);
+Runtime.abort();
+exit
+
+
+#load "../base64/base64Module.cml";
+#load "../json/jsonModule.cml";
+#load "functionslib.cml";
+#load "tevdlib.cml";
+
+format_check log : -> word8 list -> word8 list -> mlstring option
+auth_check log pub : word8 list -> bool
+
+*)
+
+fun separate_json log msg =
+let
+  val logfn = log "separate_json";
+  val json_opt = Some (Json.parser msg) handle _ => None;
+  val _ = logfn 1 ("json parsing possible: " ^ Bool.toString (Option.isSome json_opt));
+  val enc_vote_str_opt =
+    Option.map (Json.unstr)
+      (Option.mapPartial (Json.json_get "vote") json_opt);
+  val _ = logfn 1 ("json enc_vote extraction possible: " ^ Bool.toString (Option.isSome enc_vote_str_opt));
+  val signature_str_opt =
+    Option.map Json.unstr
+      (Option.mapPartial (Json.json_get "signature") json_opt);
+  val _ = logfn 1 ("json signature extraction possible: " ^ Bool.toString (Option.isSome signature_str_opt));
+in
+  if Option.isSome enc_vote_str_opt andalso Option.isSome signature_str_opt
+  then Some (Option.valOf signature_str_opt, Option.valOf enc_vote_str_opt)
+  else None
+end;
+
+(*
+  ``(auth_check log, format_check log) : (data -> bool) # (data -> data -> mlstring option)``
+*)
+
+fun main () =
+let
+  val path = "../../test_assets/"
+  val loglevel = 4;
+  val log = logid loglevel "self";
+  val logfn = log "main";
+  val _ = logfn 0 "calling test";
+  val msg = readfile (path ^ "new_signed_vote.json");
+  val msg = readfile (path ^ "aman_vote_240205.json.oldformat");
+  val msg = readfile (path ^ "arve_vote_240201.json.oldformat");
+  val msg = readfile (path ^ "arve_vote_240205.json.oldformat");
+  val Some (sign, enc_vote) = separate_json log msg;
+  val sign_words = string_to_byte_list sign;
+  val enc_vote_words = List.map Word8.fromInt (Base64.dec enc_vote);
+  val _ = logfn 0 ("format_check: " ^ Bool.toString (Option.isSome (format_check log sign_words enc_vote_words)));
+  (* val pub = string_to_byte_list (readfile (path ^ "freja-signing.pub")); *)
+  val _ = logfn 0 ("auth_check: " ^ Bool.toString (auth_check log sign_words));
+in () end;
+

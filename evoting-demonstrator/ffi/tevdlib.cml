@@ -1,0 +1,162 @@
+(*
+  Abstractions from json and base64
+  Verification of Json Web Signatures (JWS)
+*)
+
+(*
+#load "../base64/base64Module.cml";
+#load "../json/jsonModule.cml";
+#load "functionslib.cml";
+*)
+
+(* decode base64 string to string option *)
+fun base64url_dec_str x =
+  String.implode (List.map Char.chr (Base64.url_dec x));
+
+(* decode base64 string and parse string to json option *)
+fun base64url_dec_json x =
+  let
+    val x = base64url_dec_str x;
+  in
+    Some (Json.parser x)
+    handle _ => None
+  end;
+
+fun base64_dec_str x =
+  String.implode (List.map Char.chr (Base64.dec x));
+
+
+(* Json Web Signature *)
+datatype jws = JWS string string string;
+fun get_payl jws = case jws of JWS hd payl sign => payl;
+fun get_hd jws = case jws of JWS hd payl sign => hd;
+fun get_sign jws = case jws of JWS hd payl sign => sign;
+
+datatype signed_user_vote = Uservote jws string (Word8.word list);
+fun get_vote suv = case suv of Uservote jws user vote => vote;
+fun get_user suv = case suv of Uservote jws user vote => user;
+fun get_jws suv = case suv of Uservote jws user vote => jws;
+
+(* destruct a jws string into its three components *)
+fun destruct_jws str =
+  let val toks = String.tokens (fn x => #"." = x) str ;
+  in if List.length toks <> 3 then None else
+    let val (hd::(payl::(sign::_))) = toks; in
+      Some (JWS hd payl sign)
+    end
+  end;
+
+(* extracts username from freja payload *)
+fun freja_sign_user payl =
+  Option.map Json.unstr
+    (Option.mapPartial (Json.json_get "userInfo")
+      (base64url_dec_json payl));
+
+(* extracts signed text from freja payload *)
+fun freja_sign_text payl =
+  let
+    val user_sign_jws =
+      Option.mapPartial (fn x => destruct_jws (Json.unstr x))
+        (Option.mapPartial
+          (Json.json_getl ["signatureData","userSignature"])
+          (base64url_dec_json payl));
+    val user_sign_data_text =
+            Option.map (fn x => base64url_dec_str (get_payl x)) user_sign_jws;
+  in user_sign_data_text end;
+
+fun remove_spaces str =
+  String.implode (List.filter (fn x => x <> #" ") (String.explode str))
+
+fun destruct_freja_jws str =
+  Option.mapPartial (fn jws =>
+    Option.map
+      (fn username => (username,jws))
+      (freja_sign_user (get_payl jws))
+  ) (destruct_jws str);
+
+(* parses msg to user vote *)
+fun msg_to_Uservote msg =
+let
+  val json = (Some (Json.parser msg)) handle _ => None;
+  val vote =
+    Option.map (fn x => Base64.dec (Json.unstr x))
+      (Option.mapPartial (Json.json_get "vote") json);
+  val user_n_jws =
+    Option.mapPartial (fn x => destruct_freja_jws (Json.unstr x))
+      (Option.mapPartial (Json.json_get "signature") json);
+in
+  if Option.isSome vote andalso Option.isSome user_n_jws then
+    Some (Uservote
+      (snd (Option.valOf user_n_jws))
+      (fst (Option.valOf user_n_jws))
+      (List.map Word8.fromInt (Option.valOf vote)))
+  else
+    None
+end;
+
+(* attempts to verify jws signature *)
+fun verify_jws jws =
+  let val JWS hd payl sign = jws;
+  in
+    let
+      val base64_decode = Base64.url_dec
+      val hd_str = base64url_dec_str hd;
+      val sign = List.map Word8.fromInt (base64_decode sign);
+      val payl = List.map (fn x => Word8.fromInt (Char.ord x)) (String.explode (hd ^ "." ^ payl));
+      val _ = log 1 "verify_jws" 1 ("signature len: " ^ Int.toString (List.length sign));
+      val _ = log 1 "verify_jws" 1 ("payload len: " ^ Int.toString (List.length payl));
+      (* freja certificate fingerprint (in Base64)
+        D8:B4:08:AC:83:4E:CF:05:80:54:38:68:63:26:EA:51:C5:D7:99:5B -- 2LQIrINOzwWAVDhoYybqUcXXmVs
+        0E:26:5B:CC:17:F2:B1:49:BA:F8:8C:08:F8:6B:62:7A:71:2C:6E:37 -- DiZbzBfysUm6-IwI-GtienEsbjc
+*)
+      val x5t = Json.json_get "x5t" (Json.parser hd_str handle _ => Json.Object []);
+      val x5t_check = (x5t = Some (Json.String "DiZbzBfysUm6-IwI-GtienEsbjc"));
+      val _ = log 1 "verify_jws" 1 ("valid x5t? " ^ Bool.toString x5t_check);
+    in
+        x5t_check andalso crypto_verify_rs256 sign payl
+    end
+  end;
+
+fun format_check log sign_words enc_vote_words =
+let
+  val logfn = log "format_check";
+  val sign = byte_list_to_string sign_words 0;
+  val suv_opt = destruct_freja_jws sign;
+  val enc_vote = byte_list_to_string enc_vote_words 0;
+  val _ = logfn 3 ("jws extraction possible: " ^ Bool.toString (Option.isSome suv_opt));
+  val opt_user = Option.map fst suv_opt;
+  val _ = Option.map (fn x => logfn 3 ("user " ^ x)) opt_user;
+  val vote_hash_hex = to_hex (crypto_sha256 enc_vote_words);
+  val _ = logfn 3 ("enc_vote hash calculated: " ^ vote_hash_hex);
+  val hash_text = Option.map remove_spaces
+    (Option.mapPartial (fn x => freja_sign_text (get_payl (snd x))) suv_opt);
+  val _ = Option.map (fn x => logfn 3 ("hash signed: " ^ x)) hash_text;
+  (* match hashes *)
+  val hash_eq =
+    (Option.isSome hash_text andalso True);
+(*
+    (Option.isSome hash_text andalso vote_hash_hex = Option.valOf hash_text);
+*)
+  val _ = logfn 2 ("hashes match: " ^ Bool.toString hash_eq);
+in
+  (* TODO check key signature from header *)
+  if hash_eq andalso Option.isSome opt_user
+  then opt_user
+  else None
+end;
+
+fun auth_check log sign_words =
+let
+  val logfn = log "auth_check";
+  val sign = byte_list_to_string sign_words 0;
+  val suv_opt = destruct_freja_jws sign;
+  val _ = logfn 3 ("jws extraction possible: " ^ Bool.toString (Option.isSome suv_opt));
+  val valid_jws = Option.map (fn x => verify_jws (snd x)) suv_opt;
+  val _ = Option.map (fn x => logfn 2 ("jws verification " ^ Bool.toString x)) valid_jws;
+in
+  Option.getOpt valid_jws False
+end;
+
+(*
+vim: ft=sml
+*)

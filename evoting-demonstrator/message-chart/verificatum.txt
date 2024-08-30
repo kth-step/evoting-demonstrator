@@ -1,0 +1,88 @@
+@startuml
+' a rough message chart (also sequence diagram) of the interactions
+' in the demonstrator
+' https://plantuml.com/sequence-diagram
+
+skinparam sequence {
+ArrowColor DeepSkyBlue
+ActorBorderColor DeepSkyBlue
+LifeLineBorderColor blue
+LifeLineBackgroundColor #A9DCDF
+
+ParticipantBorderColor Black
+ParticipantBackgroundColor LightGray
+ParticipantFontSize 17
+ParticipantFontColor Black
+}
+
+participant "Web Server (CDN)" as cdn
+participant "Voter" as client
+participant "ID Service" as id
+participant "Vote Collection Server (VCS)" as vcs
+participant "Bulletin Board (BB)" as bb
+participant "Admin" as admin
+participant "Mix-Net Server(s) (VMN)" as vmn
+
+autonumber
+
+group ``setup phase"
+  admin -> vcs: start election \n(list of contestants & voters)
+  vcs -> vmn: start mix-nets for key generation
+  ' mediated by admin in azure
+  ' TODO 3a and 3b label for either
+  vcs <- vmn: send public key
+  vcs -> vmn: sleep mix-nets
+  vcs -> bb: init bb\n mix-net pk & contestants
+end
+
+group ``vote casting"
+  client <-> cdn: UI, vjsc
+  bb <-> client: pk & contestants
+  client -> client: cast vote
+  alt#LightGray #Pink optionally verify vote
+    client -> client: switch device
+  end
+  group ``vote hash signing"
+    client -> cdn: request singing of vote hash\noptionally authenticated
+    cdn -> id: forward user's signing request
+    client <-> id: sign on second device
+    loop has user signed yet?
+      cdn -> id: signed?
+    end
+    id -> cdn: signature
+    cdn -> client: forward signature
+  end
+end
+
+loop log until end of election
+  vcs -> bb: update vote log
+end
+
+group ``vote collection"
+  client -> vcs: submission\nsignature,userid|E_pk(vote)
+  vcs -> vcs: check eligibility, validity and voted
+  alt#LightGray #LightBlue ok
+    vcs -> bb: publish vote
+    vcs -> client: receipt
+    group ``verify"
+      client -> bb: request published votes
+      client -> client: verify vote
+      alt#LightGray #Pink check is wrong
+        client -> vcs: record complaint with receipt
+      end
+    end
+  else #Pink
+    vcs -> client: failure with error ``election ended", ``format", ``non auth", ``ineligible", ``voted"
+  end
+end
+
+group ``tallying"
+  admin -> vcs: end of voting
+  vcs -> vmn: wakeup & list of eligible encrypted votes
+  vmn -> vmn: shuffle
+  vmn -> admin: ZKP & decrypted votes
+  bb -> admin: request log
+  admin -> admin: verify ZKP and log; tabulate
+end
+
+@enduml

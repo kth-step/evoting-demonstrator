@@ -1,0 +1,67 @@
+(*
+
+Interactive use
+
+cd $CAKEDIR
+
+#load ".../base64/base64Module.cml";
+
+
+CLI
+
+cd - && cat base64Module.cml base64Prog.cml > $CAKEDIR/base64.cml
+cd $CAKEDIR && make base64.cake
+
+./base64.cake -d "bGlnaHQ="
+
+echo -n "test encode\n" | ./base64.cake
+echo -n "dGVzdCBlbmNvZGUK=" | ./base64.cake -d
+
+echo -n "-Cva" | ./base64.cake -d -u | ./base64.cake -u
+
+printf '\376\117\202' | ./base64.cake -u
+printf '_k-C' | ./base64.cake -u -d | xxd -plain
+
+*)
+
+let
+  val isFlag = (fn x => String.isPrefix "-" x andalso String.size x = 2) ;
+  val (flags,args) = List.partition isFlag (CommandLine.arguments ()) ;
+  val decode = List.member "-d" flags
+  val isBase64URL = List.member "-u" flags
+  val content_string =
+    case args of
+      [] => TextIO.inputAll TextIO.stdIn
+    | args => List.hd args;
+in
+  if decode
+  then
+    let
+      val dec =
+        if isBase64URL
+        then Base64.url_dec content_string
+        else Base64.dec content_string;
+    in
+      TextIO.print (String.implode (List.map Char.chr dec))
+    end
+  else
+    let
+      val x = List.map Char.ord (String.explode content_string);
+      val enc =
+        if isBase64URL
+        then Base64.url_enc x
+        else Base64.enc x;
+    in
+      if isBase64URL
+      then
+        TextIO.print
+          (String.implode
+            (List.takeUntil (fn x => x = #"=") enc))
+      else
+        TextIO.print (String.implode enc)
+  end
+end ;
+
+(*
+vim: ft=sml
+*)

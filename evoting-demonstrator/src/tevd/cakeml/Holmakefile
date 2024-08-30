@@ -1,0 +1,18 @@
+INCLUDES = $(CAKEMLDIR)/misc $(CAKEMLDIR)/semantics\
+					 $(CAKEMLDIR)/translator $(CAKEMLDIR)/translator/monadic\
+					 $(CAKEMLDIR)/basis $(CAKEMLDIR)/basis/pure\
+					 $(CAKEMLDIR)/compiler/parsing\
+					 $(CAKEMLDIR)/unverified/sexpr-bootstrap\
+					 $(VCSDIR)/src\
+					 $(VCSDIR)/src/tevd/hol/\
+					 $(VCSDIR)/json\
+					 $(VCSDIR)/base64\
+
+
+CML_LIBS=$(shell find ../../../ffi -iname "*lib.cml")
+
+.PHONY: all
+all: $(DEFAULT_TARGETS)
+
+TevDLibsProgTheory: $(CML_LIBS)
+

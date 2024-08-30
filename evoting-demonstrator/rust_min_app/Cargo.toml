@@ -1,0 +1,20 @@
+[package]
+name = "rust_min_app"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libc = "*"
+deser_macro = { path = "../deser/deser_macro" }
+deser_lib = { path = "../deser/deser_lib/" }
+
+[profile.release]
+strip = true      # strip symbols from binary
+lto = true        # instruct linker to optimize at link stage
+codegen-units = 1 # maximum size reduction optimizations
+opt-level = "z"   # optimize for size (over compilation speed)
+# panic = "abort"   # drop code for panic backtrace
+[features]
+emulation = []

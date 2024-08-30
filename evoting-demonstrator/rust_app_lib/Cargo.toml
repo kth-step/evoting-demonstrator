@@ -1,0 +1,33 @@
+[package]
+name = "rust_app_lib"
+version = "0.1.0"
+authors = ["Arve Gengelbach <arveg@kth.se>"]
+edition = "2021"
+default-run = "server"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+libc = "*"
+#openssl = "0.10.28"
+deser_macro = { path = "../deser/deser_macro" }
+deser_lib = { path = "../deser/deser_lib/" }
+clap = { version = "4.3.11", features = ["derive"], optional = true  }
+
+[lib]
+crate-type = ["staticlib", "lib"]
+
+[profile.release]
+strip = true      # strip symbols from binary
+lto = true        # instruct linker to optimize at link stage
+codegen-units = 1 # maximum size reduction optimizations
+opt-level = "z"   # optimize for size (over compilation speed)
+# panic = "abort"   # drop code for panic backtrace
+
+[features]
+emulation = ["clap"] # hypervisor emulation
+# compiling emulated version:
+# cargo build --features=emulation --bin=server --target-dir=emulation
+# compiling non-emulated version:
+# cargo build --bin=server
+

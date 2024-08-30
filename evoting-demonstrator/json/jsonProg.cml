@@ -1,0 +1,56 @@
+(*
+CLI usage:
+  -b    pretty prints the json
+  -k    attempts to lookup a path in a (nested) json object
+        the path is a json array of numbers and strings
+
+for CakeML REPL:
+#load ".../jsonModule.cml";
+
+cat /home/arolle/Projects/Verificatum/verificatum-demonstrator/json/json*.cml > $CAKEDIR/json.cml && (cd $CAKEDIR && make json.cake)
+*)
+
+fun println str = TextIO.print (str ^ "\n");
+fun readfile x = TextIO.inputAll (TextIO.openIn x) ;
+
+let
+  val isFlag = (fn x => String.isPrefix "-" x andalso String.size x = 2) ;
+  val non_key_args =
+    (List.takeUntil (fn x => "-k" = x) (CommandLine.arguments()))
+    @ (List.drop (List.dropUntil (fn x => "-k" = x) (CommandLine.arguments())) 2)
+  val path_arg =
+    case List.take (List.drop
+        (List.dropUntil (fn x => "-k" = x) (CommandLine.arguments())) 1) 1 of
+      [] => None
+    | k::_ => Some k
+  val is_path = Option.isSome path_arg ;
+  val path_lookup = Option.map Json.parser path_arg ;
+  val (flags,args) = List.partition isFlag non_key_args ;
+  val beautify = List.member "-b" flags ;
+  val content_string =
+    case args of
+      [] => TextIO.inputAll TextIO.stdIn
+    | args => readfile (List.hd args);
+  val json = (Inl (Json.parser content_string))
+    handle Json.LexerError msg => Inr ("lexer: " ^ msg)
+      | Json.ParserError msg => Inr ("parser: " ^ msg) ;
+  val json = case json of
+                Inl json => json
+              | Inr msg =>
+                  (let val _ = println msg; val _ = Runtime.exit 1; in Json.Null end);
+  val json_at_path = Option.mapPartial
+    (fn x => Json.get_path x json) path_lookup
+in
+  if is_path then
+    if not (Option.isSome json_at_path)
+    then println ("Invalid path  " ^ (Option.valOf path_arg))
+    else TextIO.print (Json.toString_pretty beautify (Option.valOf json_at_path))
+  else
+    if beautify
+    then TextIO.print (Json.toString_pretty beautify json)
+    else TextIO.print (Json.toString json)
+end ;
+
+(*
+vim: ft=sml
+*)
