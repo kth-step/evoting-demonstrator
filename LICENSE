@@ -1,6 +1,8 @@
 BSD 3-Clause License
 
 Copyright (c) 2023, Arve Gengelbach, Karl Palmskog, Roberto Guanciale, Mads Dam
+for files in the root directory, excluding the following directories:
+linux-5.15.13/ rootfs/ buildroot-2021.02.8/
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
