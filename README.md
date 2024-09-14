@@ -1,28 +1,27 @@
-# Compilation
+# Trustfull Electronic Voting Demonstrator
 
-## Clone the repositories and build docker
+## Compilation
 
+### clone the repositories and build docker images
 
 ```sh
 git clone https://github.com/kth-step/evoting-demonstrator.git
 cd evoting-demonstrator
 ```
 
-Expected project directory hierarchy
+Expected project directory hierarchy:
 
 ```
-hypervisor-total/
 ├── .envrc
-├── buildroot-2021.02.8
-├── evoting-demonstrator
-├── hypervisor
-├── hypervisor-cakeml
+├── docker-tevdcompile/
+├── docker-xenial-arm-gnueabi-gcc4.7/
+├── documentation/
+├── evoting-demonstrator/
+├── hypervisor/
+├── hypervisor-cakeml/
 ├── lib -> hypervisor-cakeml/lib
-├── linux-5.15.13
-├── rootfs
-├── sources
-├── docker-tevdcompile
-└── docker-xenial-arm-gnueabi-gcc4.7
+├── linux-5.15.13/
+└── sources/
 ```
 
 
@@ -38,13 +37,14 @@ docker build -t tevdcompile docker-tevdcompile/
 docker build -t xenialarmgnueabigcc4.7 docker-xenial-arm-gnueabi-gcc4.7/
 ```
 
-## enter the docker compile container
+### enter the docker compile container
+
 At the root of the `hypervisor-total` checkout enter docker:
 ```sh
 docker run --rm --network host -v "$(pwd)":/usr/src/myapp -w /usr/src/myapp -it tevdcompile /bin/bash
 ```
 
-## in tevdcompile docker
+### in tevdcompile docker
 
 ```sh
 . .envrc
@@ -79,8 +79,8 @@ sudo chown $USER -R $HYP_ROOT
 ```
 will solve these issues.
 
+### compile hypervisor
 
-## compile hypervisor
 Compile hypervisor located at
 `$HYP_ROOT/hypervisor/core/build/sth_beaglebone.fw.img`
 together with the programs in another docker with a fixed gcc version
@@ -100,7 +100,7 @@ make TEST_cml=1
 make
 ```
 
-# Build preparations
+## Build preparations
 
 - Enable docker image with gcc 4.7 for hypervisor comilation
   ```sh
@@ -112,7 +112,7 @@ make
     `make buildroot-2021.02.8/output/host/bin/arm-linux-gcc`
     which is allowed to fail at executing post-image script `support/scripts/genimage.sh`
 
-## Build dependencies
+### build dependencies
 
 The below dependencies are pre-compiled in a docker image:
 ```sh
@@ -147,7 +147,7 @@ docker build -t tevdcompile docker-tevdcompile/
   ```
   see [docker documentation](https://docs.docker.com/engine/install/linux-postinstall)
 
-## Build variables
+### build variables
 
 The build dependencies are set as environment variables denoting paths, and
 used across all `Makefile`s. The file `.envrc` sets default values that are
@@ -168,8 +168,7 @@ used in docker.
 
 ---
 
-
-# Running the demonstrator
+## Running the demonstrator
 
 The demonstrator is compiled to a bootable image at
 ```
@@ -179,7 +178,7 @@ that can be booted from a Beaglebone Black REV C board (BBB).
 The BBB fetches the bootable image over the network from a TFTP server on the
 host machine.
 
-## Configure the host machine
+### configure the host machine
 
 The host machine needs to host a TFTP server on the proper network, that the
 BBB can access.
@@ -239,16 +238,16 @@ a)	Install following packages:
 		sudo /etc/init.d/xinetd start or sudo service xinetd start
 
 
-## Configure the Beaglebone Black
+### configure the Beaglebone Black
 
 Connect Beaglebone Black
 Connect the black cable of the serial-cable (connected to the PC) to the pin with the white dot next to it.
 Press the boot `POWER` switch button and insert usb power cable, and release when output is shown in `screen`.
 To power off, press the power button until the power led turns off, and remove the power cable while the led is turned off.
 
-### Commands to run on BBB within uboot
+#### commands to run on Beaglebone Black within uboot
 
-To boot the proper files ensure that IP, file
+To boot the proper files, ensure that IP, file
 `core/build/sth_beaglebone.fw.img` and start address `0x80000000` are correctly
 set on the BBB.
 ```
@@ -262,7 +261,7 @@ env
 bootd # to boot into the linux image over TFTP
 ```
 
-### Connect to the BBB
+#### connecting to the Beaglebone Black
 
 Run the serial console via [miniterm from python pyserial package](https://pyserial.readthedocs.io/en/latest/tools.html#miniterm)
 in a tmux session enriched to store the log output upon exit with `C-c`.
@@ -289,4 +288,3 @@ If networking is not enabled at startup, start networking on BBB Linux:
 
 The demonstrator is the executable placed in the root, which is shown when
 hitting `ls`.
-

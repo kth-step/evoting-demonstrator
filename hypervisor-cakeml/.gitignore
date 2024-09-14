@@ -1,0 +1,7 @@
+lib/basis_ffi.c
+lib/cake
+lib/cake-x64-32.tar.gz
+lib/cake.S
+linuxapp/*.o
+linuxapp/lib*.so
+linuxapp/target

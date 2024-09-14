@@ -1,0 +1,42 @@
+val buffer_length = 38960;
+
+fun process_message input_buffer =
+  List.map (Word8.fromInt o (fn x => (Char.ord x) + 1) o Char.fromByte) input_buffer
+
+fun hypercall_receive_data () =
+let
+  val cakeml_receive_buffer = Word8Array.array buffer_length (Word8.fromInt 0)
+  val _ = #(receive_input_buffer) "" cakeml_receive_buffer
+  val ret = List.genlist (fn i => Word8Array.sub cakeml_receive_buffer i) buffer_length
+in
+  ret
+end
+
+fun hypercall_send_data data_output =
+let
+  val temporary_buffer = Word8Array.array buffer_length (Word8.fromInt 0)
+  val _ = List.mapi
+            (fn i => fn e => Word8Array.update temporary_buffer i e)
+            (List.take data_output buffer_length)
+  val _ = #(send_output_buffer) "" temporary_buffer
+in () end
+
+fun main () =
+  let
+    val _ =
+    while
+      (fn x => True)
+      (fn () =>
+         let
+           val _ = Runtime.fullGC();
+           val _ = TextIO.print ("loop restart. call to hypercall_send_data\n");
+           val data_input = hypercall_receive_data ()
+           val data_output = process_message data_input
+           val _ = hypercall_send_data data_output
+          in () end
+      ) ()
+  in
+    ()
+  end;
+
+main ();

@@ -1,0 +1,454 @@
+################################################################################
+#Installing software for compiling the hypervisor on Ubuntu#####################
+################################################################################
+
+1.	Install ARM cross compiler to enable compilation of the hypervisor on Ubuntu:
+
+	sudo apt-get install gcc-arm-linux-gnueabihf
+
+2.	Install openSSL (needed for U-boot):
+
+	sudo apt-get install libssl-dev
+
+3.	Compile U-boot (2019.04-rc4):
+
+	git clone git://git.denx.de/u-boot.git u-boot/
+	cd u-boot/
+	make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- distclean
+	make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- am335x_boneblack_vboot_defconfig
+	make ARCH=arm menuconfig
+
+	Unmark the following options:
+		Enable a default value for bootcmd
+		SPL / TPL > Support USB Gadget drivers
+		Command line interface > Device access commands > dfu
+		Command line interface > Device access commands > usb
+		Device Drivers > USB support
+
+	Mark the following options:
+		Device Drivers > Ethernet PHY (physical media interface) support > Fixed-Link PHY
+		Boot images > Enable support for the legacy image format
+
+	make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- all -j4
+
+4.	Install U-boot on a µSD card which is during installation inserted into the
+	development PC and later into BeagleBone Black to boot the hypervisor (source:
+	https://www.digikey.com/eewiki/display/linuxonarm/BeagleBone+Black#BeagleBoneBlack-SetupmicroSDcard):
+
+	a)	It is assumed that µSD card is mmcblk0. The command lsblk can be used to
+		determine the device id. DISK=/dev/mmcblk0:
+
+		export DISK=/dev/mmcblk0
+
+	b)	Erase partition table/labels on microSD card:
+
+		sudo dd if=/dev/zero of=${DISK} bs=1M count=10
+
+	c)	Install Bootloader:
+
+		sudo dd if=./u-boot/MLO of=${DISK} count=1 seek=1 bs=128k
+		sudo dd if=./u-boot/u-boot.img of=${DISK} count=2 seek=1 bs=384k
+
+	d)	Unmount µSD card:
+
+		sudo umount /media/<path_to_mount_point>
+
+	e)	Create Partition Layout if sfdisk --version >= 2.26.x:
+
+		sudo sfdisk ${DISK} <<-__EOF__	<ENTER>
+		4M,,L,*							<ENTER>
+		__EOF__							<ENTER>
+
+	  	Create Partition Layout if sfdisk --version <= 2.25.x:
+
+		sudo sfdisk --unit M ${DISK} <<-__EOF__		<ENTER>
+		4,,L,*										<ENTER>
+		__EOF__										<ENTER>
+
+	f)	Format Partition with mkfs.ext4 >= 1.43:
+
+		sudo mkfs.ext4 -L rootfs -O ^metadata_csum,^64bit ${DISK}p1
+
+	 	Format Partition with mkfs.ext4 <= 1.42:
+
+		sudo mkfs.ext4 -L rootfs ${DISK}p1
+
+	g)	Remove the µSD card from the PC:
+		sync
+
+	h)	Insert µSD card into BeagleBone Black. Start BeagleBone Black by
+		pressing down the button close to the µSD card.
+
+		In U-boot, if bootdelay is accidentally set to 0, then one can solve
+		that by inserting:
+
+		"
+		#warning "setting ZERO_BOOTDELAY_CHECK"
+
+		#define CONFIG_ZERO_BOOTDELAY_CHECK
+		"
+
+		at the top outside any if statements in the file
+		/u-boot/include/configs/am335x_evm.h
+
+
+		Some U-boot commands for reading memory (by transferring the file
+		test234 from a TFTP server connected via Ethernet to BeagleBone Black):
+		=> tftpboot 0x82000000 192.168.1.1:test234
+		=> base 82000000  
+		#Base Address: 0x82000000
+		=> md 0 1
+		#82000000: 736a6568                               hejs
+		=> md 0 2
+		#82000000: 736a6568 6e206e61                      hejsan n
+		=> md 0 3
+		#82000000: 736a6568 6e206e61 65737369             hejsan nisse
+
+
+		To make U-boot boot automatically:
+		setenv bootcmd "tftpboot 0x82000000 <server-ip-address>:<path-u-boot-image-to-boot>/uImage; bootm 0x82000000"
+		saveenv
+
+		To make U-boot wait for three seconds before booting the hypervisor:
+		setenv bootcount 3
+		saveenv
+
+		The boot variables set in U-boot are as follows:
+			baudrate=115200
+			board_name=A335BNLT
+			board_rev=000C
+			board_serial=5014BBBK0466
+			bootcmd=tftpboot 0x80000000 192.168.1.1:BBB/hypervisor/core/build/sth_beaglebone.fw.img;bootm 0x80000000
+			bootcount=3
+			eth1addr=de:ad:be:ef:00:01
+			ethact=ethernet@4a100000
+			ethaddr=d0:5f:b8:ff:b6:e1
+			fdtcontroladdr=9df59c78
+			fileaddr=81000000
+			filesize=5b77cf
+			ipaddr=192.168.1.2
+			serial#=5014BBBK0466
+			serverip=192.168.1.1
+			stderr=serial@44e09000
+			stdin=serial@44e09000
+			stdout=serial@44e09000
+			usbnet_devaddr=de:ad:be:ef:00:01
+			v=1
+			v1=1
+			v2=2
+			ver=U-Boot 2019.04-rc4 (Apr 10 2019 - 12:16:38 +0200)
+
+
+
+
+
+5.	Install kermit which is used to communicate with BeagleBone Black via a UART:
+	a) sudo apt-get install ckermit
+	b) configure kermit:
+		touch ~/kermrc
+	   with contents (might have to change set line to /dev/ttyUSB0):
+		"set line          /dev/ttyUSB1
+		set speed         115200
+		set carrier-watch off
+		set handshake     none
+		set flow-control none
+		robust
+		set file type     bin
+		set file name     lit
+		set rec pack      1000
+		set send pack     1000
+		set window        5"
+	c) run kermit:
+		sudo kermit -c
+	d) exit kermit:
+		press 'ctrl + \' (Alt Gr +-button for \) and release and then press 'c'
+		then type 'exit'
+
+6.	Connect Beaglebone Black:
+	a)	Connect the black cable of the serial-cable (connected to the PC) to the
+		pin with the white dot next to it.
+	b)	Press the boot switch button and insert usb power cable, and release
+		when output is shown in kermit.
+	c)	To power off, press the power button until the power led turns off, and
+		remove the power cable while the led is turned off.
+
+7.	Setup TFTP-server on the development PC used to transfer the compiled
+	hypervisor with Linux to BeagleBone Black:
+	a)	Install following packages:
+
+		sudo apt-get install xinetd tftpd tftp
+
+	b)	Create /etc/xinetd.d/tftp and insert the following lines, where the path
+		of server_args identifies the directory containing the files accessible
+		through tftp.
+
+		service tftp
+		{
+		protocol        = udp
+		port            = 69
+		socket_type     = dgram
+		wait            = yes
+		user            = nobody
+		server          = /usr/sbin/in.tftpd
+		server_args     = /home/admin/BBB/benchmarking
+		disable         = no
+		flags           = IPv4
+		}
+
+	d)	Restart the xinetd service.
+
+		sudo /etc/init.d/xinetd stop or sudo service xinetd stop
+		sudo /etc/init.d/xinetd start or sudo service xinetd start
+
+	e)	For testing do the following (netstat -pln might be useful to see that port 69 is open):
+
+		sudo mkdir /home/admin/BBB/benchmarking/bbb-images
+		sudo chmod -R 777 /home/admin/BBB/benchmarking/bbb-images
+		sudo chown -R nobody /home/admin/BBB/benchmarking/bbb-images
+		echo "hi" > /home/admin/BBB/benchmarking/bbb-images/test
+		tftp 127.0.0.1
+			#get test
+			#quit
+		cat test
+
+8.	Install Docker to be able to run an old gcc ARM cross compiler that is
+	necessary to compile the hypervisor:
+
+	a)	Install docker:
+
+		sudo apt-get install docker
+
+	b)	Create docker file "Dockerfile" with the following contents:
+
+		FROM buildpack-deps:xenial
+		MAINTAINER <YOUR NAME> <YOUR_EMAIL>
+
+		RUN apt-get update && apt-get install -y \
+			make cmake bc
+
+		RUN apt-get update && apt-get install -y \
+			gcc-4.7-arm-linux-gnueabi \
+			&& update-alternatives --install /usr/bin/arm-linux-gnueabi-gcc arm-linux-gnueabi-gcc /usr/bin/arm-linux-gnueabi-gcc-4.7 999
+
+		RUN apt-get update && apt-get install -y \
+			gcc-arm-none-eabi
+
+		RUN apt-get update && apt-get install -y \
+			u-boot-tools
+
+	c)	Build the image. "." is the path to the directory containing the
+		Dockerfile (it's simpler to just cd inside the directory)
+
+		sudo docker build -t gcc49-arm-docker .
+
+	d)	To run the docker gcc-49-arm-docker interactively, go to the hypervisor
+		source directory and type
+
+		sudo docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp -it gcc49-arm-docker
+
+		To compile the hypervisor, type:
+
+		make
+
+		
+		Alternatively, run a command inside a new container using the image
+		"gcc49-arm-docker":
+
+		-$PWD is a special bash variable containing the current directory (read
+		 "man pwd")
+		-"-v "$PWD":/usr/src/myapp -w /usr/src/myapp" is to "bind" the current
+		 directory inside the docker image to the current directory
+		-read "docker run --help" or "man docker-run"
+		sudo docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp gcc49-arm-docker a-command-with-flags -o here -i there
+
+	   	This will add your current directory, as a volume, to the container, set
+		the working directory to the volume, and run the command
+
+		gcc -o myapp myapp.c
+
+		This tells gcc to compile the code in myapp.c and output the executable
+		to myapp.
+
+		docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp gcc:4.9 gcc -o myapp myapp.c
+
+		Alternatively, if you have a Makefile, you can instead run the make
+		command inside your container:
+
+		docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp gcc:4.9 make
+
+
+
+################################################################################
+#Creating file system on Ubuntu for Linux to run on top of the hypervisor#######
+################################################################################
+
+In the cctv directory, there is a CPIO archive rootfs.cpio that can be used
+to run Linux. This rootfs file system is incorporated into the complied Linux
+image by setting the following line
+
+CONFIG_INITRAMFS_SOURCE="<path-to>/rootfs.cpio"
+
+in the the config file linux_config stored in the cctv directory. This config
+file shall be renamed to .config and stored in the root directory of the Linux
+kernel source.
+
+In the root directory of the mounted file system when running Linux on
+BeagleBone Black camera_app is stored in the directory /root. This program takes
+the photos.
+
+There are a number of files in the mounted file system that are used to
+configure the network interface and start background processes:
+-/etc/init.d/S40network: Configures the network interface to have the IP address
+ 192.168.1.2
+-/etc/init.d/S80tftp-hpa: Starts a TFTP server on BBB, that can be used to
+ download taken photos.
+-/etc/init.d/S100camera-tftp: Mounts a USB flash into the file system to
+ /media/usb/ with the tftp root at /media/usb/tftp_files/, and starts a crontab
+ that every minute invokes /root/camera_app to take a photo. The photos are
+ stored in the directory /media/usb/tftp_files/ along with a log file cctv.log
+ which can also be downloaded to see the file names of all taken CCTV photos.
+
+If the rootfs.cpio file system must be modified, it can be extracted with the
+following command on the development PC:
+
+cpio -idv < ../rootfs.cpio
+
+Files can then be removed and added by modifying the resulting rootfs directory
+created in the current directory.
+
+To create an updated rootfs.cpio archive, type the following two commands:
+
+sudo -s 
+find ./rootfs | cpio -ov > rootfs.cpio
+
+
+
+
+
+Alternatively buildroot can be used to build the rootfs file system to be
+mounted in Linux on BeagleBone Black:
+	a) Download buildroot and unpack.
+
+	b) Configure buildroot (executed from buildroot directory):
+		make menuconfig
+
+	   or use existing config file (see buildroot_config in the cctv directory)
+		cp <path-to-existing-config-file> <path-to-root-directory-of-buildroot>/.config
+
+	   Important if applications shall be cross-compiled and run on BBB:
+		Select		Toolchain > Kernel Headers: Custom tarball
+		Specify in	Toolchain > Kernel Headers > URL of custom kernel tarball: file:///home/...<path_to_tarball>/linux-3.10.tar.bz2
+		Select		Toolchain > Custom kernel header series: 3.10.x
+		Select		Toolchain > GCC compiler version: 4.9.x
+
+
+	c) Compile with make
+		make ARCH=arm
+
+	d) The ramfs image is in buildroot's output/images directory with the name rootfs.cpio or rootfs.tar.
+
+	   Unpack the rootfs.cpio archive (if necessary to be superuser: type 'su' in the terminal):
+		rm -rf rootfs
+		mkdir rootfs
+		cd rootfs
+		cp ../rootfs.cpio ./rootfs.cpio
+		cpio -i -d -H newc -F ../rootfs.cpio --no-absolute-filenames
+		rm rootfs.cpio
+
+	   and change the access permissions of the rootfs directory to root:
+		cd ..
+		chown root rootfs -R
+
+	   Similar commands applies to the rootfs.tar archive.
+
+	   If desirable to create cpio archive type
+		sh mkinitramfs.sh rootfs rootfs.cpio
+
+	e) Add the following line in the file /etc/init.d/S60confnet.sh to automatically configure eth0
+		ifconfig eth0 192.168.1.2 netmask 255.255.255.0
+
+	f) Add the following line to the file /etc/init.d/S60confnet.sh to automatically configure the gateway:
+		route add default gw 192.168.1.1 eth0
+
+	g) Add the following line to the file /etc/init.d/S60confnet.sh to automatically add a DNS server:
+		echo "nameserver 193.10.64.9" > /etc/resolv.conf
+
+	h) To add files to the home directory of root, add the files to <path-to-rootfs>/root/
+
+	i) Configure Linux compilation to point to the rootfs directory or the cpio archive (CONFIG_INITRAMFS_SOURCE) and Linux will create the .cpio archive:
+		make ARCH=arm menuconfig
+		General setup > Initramfs source file(s) = <path-to-rootfs-directory or path-to-cpio-archive> (e.g. "../rootfs")
+
+	   or to the cpio archive:
+		make ARCH=arm menuconfig
+		General setup > Initramfs source file(s) = <path-to-rootfs-directory or path-to-cpio-archive> (e.g. "../rootfs.cpio")
+
+
+Cross-compile a C program on the development PC with buildroot, and then execute
+that program on BeagleBone Black can be done as follows:
+	a) Cross-compile program.c
+		./<path_to_buildroot>/buildroot-2019.02.1/output/host/bin/arm-buildroot-linux-uclibcgnueabi-gcc-4.9.4 <path_to_program.c>/program.c -o <path_to_output_binary>/name_of_binary
+	b) Download to BBB (execute the following command on BBB):
+		tftp -gr <path_to_binary_with_respect to root directory of TFTP server (which is /home/admin/BBB/benchmarking)>/name_of_binary 192.168.1.1
+	c) Execute the program on BBB (execute the following command on BBB; if necessary make the binary executable by executing 'chmod +x name_of_binary' on BBB):
+		./name_of_binary
+
+
+################################################################################
+#Compiling Linux on Ubuntu to run on the hypervisor#############################
+################################################################################
+To compile Linux, go to the source directory:
+cd linux-5.15.13
+
+Compile Linux:
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- -j8
+
+Go out of Linux directory:
+cd ..
+
+Assuming the current directory contains the hypervisor directory, concatenate
+the compiled zImage file with the device tree binary file and store it as a
+zImage.bin file in the hypervisor guest directory:
+cat linux-5.15.13/arch/arm/boot/zImage linux-5.15.13/arch/arm/boot/dts/am335x-boneblack.dtb > hypervisor/guests/linux/build/zImage.bin
+
+Then go to the hypervisor directory, type
+
+sudo docker run --rm -v "$PWD":/usr/src/myapp -w /usr/src/myapp -it gcc49-arm-docker
+
+and then type
+
+make
+
+to compile the hypervisor.
+
+If the config file of Linux must be changed, type
+
+make ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- menuconfig
+
+and make the desired changes and then save them and recompile.
+
+
+
+################################################################################
+#Run CCTV system on Beaglebone Black############################################
+################################################################################
+When prompted to log in, type 'root'.
+
+Running ./camera_app takes a photo, which also occurs by a cron deamon once very
+minute with the files stored in /media/usb/tftp_files/.
+
+The photos can be downloaded to the PC as follows:
+1. Start tftp and connect to BBB, where BBB have IP 192.168.1.2:
+	tftp 192.168.1.2
+2. Download file when running tftp application:
+	get /media/usb/tftp_files/cctv.log
+3. Exit from tftp application:
+	quit
+4. View CCTV log:
+	cat cctv.log
+
+Repeat steps 1-4 but with a pathname given by cctv.log to obtain the photos.
+
+To view the photos, compile on the development PC the files aes.c and aes.h (in
+the cctv directory), e.g. by running gcc -o main aes.c, and then run main
+<path-to-cctv-photo> to decrypt the photos.

@@ -1,0 +1,31 @@
+fun echo str =
+let
+  (* buffer: header + data *)
+  (* data may be twice the length of the send string *)
+  val data_length = 20; (* 2 * String.size str; *)
+  val header_length = 2;
+  val buf = Word8Array.array (header_length + data_length) (Word8.fromInt 0);
+  val _ = #(echo) str buf
+  (* read length header from buffer *)
+  val length = min (Marshalling.w22n buf 0) data_length;
+in
+  String.concat
+    (List.map
+      (String.str o Char.fromByte)
+      (List.genlist (fn i => Word8Array.sub buf (i + header_length)) length))
+end;
+
+(* testa timern problemen *)
+while (fn x => True) (fn counter =>
+  if counter mod 200000000 = 0
+  then
+    let
+      val res = echo "test"
+      val _ = TextIO.print (res ^ "\n");
+    in
+      counter + 1
+    end
+  else counter + 1
+) 0;
+
+(* vim: set ft=sml : *)

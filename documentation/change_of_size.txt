@@ -1,0 +1,32 @@
+Change of size:
+-hypervisor/core/config/sw/trusted.cfg:GUESTS
+-hypervisor/core/hw/board/beaglebone/board_mem.c:memory_padr_layout
+-hypervisor/core/hypervisor/handlers.c:BUFFER_LENGTH
+-hypervisor/core/hypervisor/linux_config.c:BUFFER_LENGTH
+-hypervisor-cakeml/cakeml/basis_ffi.c:BUFFER_LENGTH
+-hypervisor-cakeml/cakeml/start.S:BUFFER_LENGTH
+-hypervisor-cakeml/cakeml/trusted.cml:buffer_length
+-hypervisor-cakeml/linuxapp/rust_app.rs:BUFFER_LENGTH
+
+The size of the trusted guest must be such that its start address plus its size
+equals the start address of Linux, due to how guests are copied by
+hypervisor/core/hw/cpu/arm/arm_common/arm_guest_blob.S:arm_move_guest_blob,
+where the start address of the next guest (in this case cakeML) is calculated by
+subtracting the amount of physical memory allocated to the next guest from the
+start address of the previous guest (in this case Linux). This is not the size
+of the buffer, but the amoung of memory allocated to the trusted guest
+(hypervisor/core/config/sw/trusted.cfg, hypervisor-cakeml/cakeml/cake_guest.ld,
+hypervisor/core/hw/board/beaglebone/board_mem.c).
+
+Change of start address:
+-hypervisor/core/config/sw/trusted.cfg:GUESTS
+-hypervisor/core/hypervisor/handlers.c:TRUSTED_LOCATION
+-hypervisor/core/hypervisor/guest_config/linux_config.c:TRUSTED_LOCATION
+-hypervisor/core/hw/board/beaglebone/board_mem.c:memory_padr_layout
+-hypervisor-cakeml/cakeml/cake_guest.ld
+-hypervisor-cakeml/cakeml/basis_ffi.c:TRUSTED_LOCATION
+
+
+
+gedit hypervisor/core/config/sw/trusted.cfg hypervisor/core/hw/board/beaglebone/board_mem.c hypervisor/core/hypervisor/handlers.c hypervisor/core/hypervisor/guest_config/linux_config.c hypervisor/core/hypervisor/guest_config/linux_config.c hypervisor-cakeml/cakeml/basis_ffi.c hypervisor-cakeml/cakeml/cake_guest.ld hypervisor-cakeml/cakeml/start.S hypervisor-cakeml/cakeml/trusted.cml hypervisor-cakeml/linuxapp/rust_app.rs
+

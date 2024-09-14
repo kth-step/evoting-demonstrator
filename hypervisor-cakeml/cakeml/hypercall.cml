@@ -1,0 +1,77 @@
+fun buffer_size () = 20;
+
+datatype typ = SendMsg | GetSelf | Undefined ;
+
+fun num_to_message_type typ =
+case typ of
+  2 => SendMsg
+| 1 => GetSelf
+| _ => Undefined
+
+fun act_upon_msg (typ_in,data_in) =
+  case (num_to_message_type (Word8.toInt typ_in)) of
+    SendMsg => 
+      let
+        val _ = TextIO.print ("cml handler not implemented for SendMsg\n");
+      in
+        (Word8.fromInt 1, [])
+      end
+  | GetSelf =>
+      let
+        val _ = TextIO.print ("cml name of parameter: " ^
+          String.implode (List.map Char.fromByte data_in) ^ "\n")
+        val _ = TextIO.print ("cml data len: " ^
+          (Int.toString (List.length data_in)) ^ "\n")
+      in
+        (Word8.fromInt 0, [])
+      end
+  | Undefined =>
+      let
+        val _ = TextIO.print ("cml call undefined\n");
+      in
+        (Word8.fromInt 1, List.map Word8.fromInt [42])
+      end
+
+(*
+  passes data to ffihypercall function
+  type : u8, len : vec[u8; 2], data
+*)
+fun hypercall (typ : Word8.word) (data_in : Word8.word list) =
+let
+  val header_length = 3;
+  val data_length = (buffer_size()) - header_length;
+  val buf = Word8Array.array (header_length + data_length) (Word8.fromInt 0);
+  (* write answer, respecting bounds *)
+  val len = min (List.length data_in) data_length
+  val _ = Word8Array.update buf 0 typ;
+  val _ = Marshalling.n2w2 len buf 1;
+  val _ = List.mapi (fn i => fn x =>
+    Word8Array.update buf (i + header_length) x)
+    (List.take data_in len)
+  val _ = #(hypercall) "" buf
+  val typ = Word8Array.sub buf 0
+  val length = min (Marshalling.w22n buf 1) data_length;
+  val data_out = List.genlist (fn i => Word8Array.sub buf
+      (i + header_length)) length
+in
+  (typ, data_out)
+end
+
+fun main() =
+let
+  val _ =
+    while (fn x => True) (fn (typ_in,data_in) =>
+      let
+        val (typ_out, data_out) = hypercall typ_in data_in;
+        val (typ_in,data_in) = act_upon_msg (typ_out, data_out)
+        (* output separator: *)
+        val _ = TextIO.print "\n";
+      in
+        (typ_in,data_in)
+      end
+    ) (Word8.fromInt 0,[])
+in () end;
+
+main();
+
+(* vim: set ft=sml : *)

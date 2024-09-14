@@ -1,0 +1,24 @@
+(* passes the string argument to the foreign function ffiecho and
+   returns the data as a string *)
+fun echo str =
+let
+  (* buffer: header + data *)
+  (* data may be twice the length of the send string *)
+  val data_length = 20; (* 2 * String.size str; *)
+  val header_length = 2;
+  val buf = Word8Array.array (header_length + data_length) (Word8.fromInt 0);
+  val _ = #(echo) str buf
+  (* read length header from buffer *)
+  val length = min (Marshalling.w22n buf 0) data_length;
+in
+  String.concat
+    (List.map
+      (String.str o Char.fromByte)
+      (List.genlist (fn i => Word8Array.sub buf (i + header_length)) length))
+end;
+
+val a = echo "init";
+val b = echo a;
+TextIO.print (a ^ "\n");
+
+(* vim: ft=sml *)

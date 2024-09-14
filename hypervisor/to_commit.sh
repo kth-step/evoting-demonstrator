@@ -1,0 +1,26 @@
+git add core/hw/board/beaglebone/board_mem.c
+git add core/hw/cpu/arm/arm_common/arm_mmu_pt.c
+git add core/hw/soc/am33xx/soc_interrupt.c
+git add core/hypervisor/guest_config/linux_config.c
+git add core/hypervisor/handlers.c
+git add core/hypervisor/hypercalls.h
+git add core/hypervisor/hypercalls/hyp_rpc.c
+git add core/hypervisor/init.c
+git add core/include/types.h
+git rm deploy.sh
+git add guests/Makefile
+git rm guests/trusted/src/BBBCAM.c
+git rm guests/trusted/src/BBBCAM.h
+git rm guests/trusted/src/aes.c
+git rm guests/trusted/src/aes.h
+git rm guests/trusted/src/ov2640_regs.h
+git rm guests/trusted/src/printing.c
+git rm guests/trusted/src/printing.h
+git rm guests/trusted/src/trusted_service.c
+git rm guests/trusted/src/uboot_i2c.c
+git rm guests/trusted/src/uboot_i2c.h
+git rm guests/trusted/src/uboot_spi.c
+git rm guests/trusted/src/uboot_spi.h
+git rm note.txct
+git rm uart_screen.sh
+
